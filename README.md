@@ -1,4 +1,4 @@
-# Plugin name
+# Ranked Plugin
 
 
 ## Building a Jar

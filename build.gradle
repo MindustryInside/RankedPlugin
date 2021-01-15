@@ -18,6 +18,8 @@ ext{
 dependencies{
     compileOnly "com.github.Anuken.Arc:arc-core:$mindustryVrsion"
     compileOnly "com.github.Anuken.Mindustry:core:$mindustryVrsion"
+
+    implementation "com.google.code.gson:gson:2.8.6"
 }
 
 allprojects{

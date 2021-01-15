@@ -1,55 +1,128 @@
 package ranked;
 
-import arc.Events;
-import arc.struct.ObjectSet;
+import arc.*;
+import arc.files.Fi;
+import arc.struct.*;
 import arc.util.*;
-import mindustry.core.GameState;
+import com.google.gson.*;
+import mindustry.Vars;
+import mindustry.core.*;
 import mindustry.game.*;
 import mindustry.gen.*;
 import mindustry.maps.Map;
 import mindustry.mod.Plugin;
+import mindustry.net.WorldReloader;
+import ranked.struct.ForwardObjectMap;
+
+import java.util.concurrent.atomic.*;
 
 import static mindustry.Vars.*;
 
 public class RankedPlugin extends Plugin{
     private Interval interval = new Interval(2);
-    private int waitTime = 60 * 60;
-    private double counter = 0d;
 
+    private Configuration configuration;
     private final Rules rules = new Rules();
+    private final Gson gson = new GsonBuilder()
+            .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_DASHES)
+            .setPrettyPrinting()
+            .serializeNulls()
+            .disableHtmlEscaping()
+            .create();
 
-    public Map next;
-    public ObjectSet<String> ready = new ObjectSet<>();
+    public @Nullable MatchInfo current;
+    public Seq<String> ready = new Seq<>();
+    public ForwardObjectMap<String, PlayerData> data = new ForwardObjectMap<>();
+    public AtomicInteger discriminatorCounter = new AtomicInteger();
 
     @Override
     public void init(){
+        Fi cfg = dataDirectory.child("config-ranked.json");
+        if(!cfg.exists()){
+            cfg.writeString(gson.toJson(configuration = new Configuration()));
+            Log.info("Configuration created...");
+        }else{
+            configuration = gson.fromJson(cfg.reader(), Configuration.class);
+        }
+
+        discriminatorCounter.set(Core.settings.getInt("discriminator-counter"));
+
         rules.tags.put("ranked", "true");
 
-        Events.run(EventType.Trigger.update, () -> {
-            if(active() && lobby()){
-                if((int)(waitTime - counter) / 60 < 0){
-                    counter = 0;
-                }
+        NetServer.TeamAssigner prev = netServer.assigner;
+        netServer.assigner = (player, players) -> {
+            Seq<Player> arr = Seq.with(players);
 
+            if(active() && !lobby()){
+                for(Teams.TeamData team : state.teams.active){
+                    if(team.active() && !arr.contains(p -> p.team() == team.team)){
+                        return team.team;
+                    }
+                }
+                return Team.derelict;
+            }else{
+                return prev.assign(player, players);
+            }
+        };
+
+        Events.on(EventType.PlayerLeave.class, event -> {
+            if(current != null){
+                Events.fire(new RankedEventType.RankedGameEnd(current));
+            }
+
+            ready.remove(event.player.uuid());
+        });
+
+        Events.on(RankedEventType.RankedGameEnd.class, event -> {
+            // todo(Skat) player leave logic
+        });
+
+        Events.on(EventType.PlayerJoin.class, event -> {
+            Player player = event.player;
+            data.get(player.uuid(), () -> new PlayerData(player.uuid(), player.name, discriminatorCounter.getAndIncrement(), configuration.ranks.get(0)));
+        });
+
+        Events.run(EventType.Trigger.update, () -> {
+            if(interval.get(1, 60 * 60)){
+                Core.settings.put("discriminator-counter", discriminatorCounter.get());
+            }
+
+            if(active() && lobby()){
                 if(interval.get(0, 60)){
-                    if(ready.size == getRequiredPlayers()){
-                        Call.setHudText("The required number of players has been recruited.\nStarting the game...");
+                    if(configuration.dueling && ready.size / 2 == 1){
+                        PlayerData player1 = data.get(ready.random());
+                        PlayerData player2 = data.get(ready.random(player1.uuid));
+
+                        Events.fire(new RankedEventType.RankedGameStart(Seq.with(player1, player2)));
                     }else{
-                        int time = (int)(waitTime - counter) / 60;
-                        if(time == 0){
-                            Call.setHudText("The required number of players is not collected.");
-                            next = maps.getShuffleMode().next(Gamemode.survival, state.map);
-                        }else{
-                            Call.setHudText(Strings.format("Recruited @, required @ players for start game.\nMap @[white]\nwait @ seconds",
-                                                           ready.size, getRequiredPlayers(), getNext().name(), time));
-                        }
+                        Call.setHudText(Strings.format("In queue: @\nLooking for an opponent@", ready.size, Strings.animated(Time.time, 4, 90f, ".")));
                     }
                 }
 
-                counter += Time.delta;
-            }else{
-                counter = 0;
             }
+        });
+
+        Events.on(RankedEventType.RankedGameStart.class, event -> {
+            state.rules.tags.remove("lobby");
+            WorldReloader reloader = new WorldReloader();
+
+            reloader.begin();
+
+            Map map = maps.getNextMap(Gamemode.pvp, null); //maps.all().find(m -> m.teams.size > 1);
+            world.loadMap(map);
+
+            state.rules = rules.copy();
+            state.rules.pvp = true;
+            state.rules.waitEnemies = false;
+            state.rules.attackMode = false;
+            logic.play();
+
+            reloader.end();
+
+            ready.removeAll(event.players.map(p -> p.uuid));
+
+            current = new MatchInfo();
+            // todo(Skat) initialize
         });
     }
 
@@ -64,9 +137,8 @@ public class RankedPlugin extends Plugin{
 
             logic.reset();
             world.loadMap(maps.all().find(m -> m.name().contains("lobby")));
-            Rules lobby = rules.copy();
-            lobby.tags.put("lobby", "true");
-            state.rules = lobby;
+            state.rules = rules.copy();
+            state.rules.tags.put("lobby", "true");
             logic.play();
             netServer.openServer();
         });
@@ -78,20 +150,24 @@ public class RankedPlugin extends Plugin{
         handler.<Player>register("reg", "Get ready for round.", (args, player) -> {
             if(ready.contains(player.uuid())){
                 ready.remove(player.uuid());
-                player.sendMessage("Unregistered");
+                player.sendMessage("[lightgray]You've been [orange]removed[] from queue");
             }else{
                 ready.add(player.uuid());
-                player.sendMessage("Registered");
+                player.sendMessage("[lightgray]You've been [orange]added[] to queue.");
             }
         });
-    }
 
-    private Map getNext(){
-        return next != null ? next : (next = maps.getShuffleMode().next(Gamemode.survival, state.map));
-    }
+        handler.<Player>register("info", "Get self info.", (args, player) -> {
+            PlayerData playerData = data.get(player.uuid());
 
-    private int getRequiredPlayers(){
-        return (int)Math.ceil(Groups.player.size() * 2);
+            Call.infoMessage(player.con, Strings.format("[orange]-- Your Statistic --\n" +
+                                                        "name [lightgray]@[]#[lightgray]@[orange]\n" +
+                                                        "rank [lightgray]@[]\n" +
+                                                        "rating [lightgray]@[]\n" +
+                                                        "position in top [lightgray]@",
+                                                        playerData.name, playerData.discriminator,
+                                                        playerData.rank.name, playerData.rank.rating, 0)); // todo(Skat) make position calculating
+        });
     }
 
     private boolean lobby(){

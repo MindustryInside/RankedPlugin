@@ -2,10 +2,9 @@ package ranked;
 
 import arc.*;
 import arc.files.Fi;
-import arc.struct.*;
+import arc.struct.Seq;
 import arc.util.*;
 import com.google.gson.*;
-import mindustry.Vars;
 import mindustry.core.*;
 import mindustry.game.*;
 import mindustry.gen.*;
@@ -14,12 +13,14 @@ import mindustry.mod.Plugin;
 import mindustry.net.WorldReloader;
 import ranked.struct.ForwardObjectMap;
 
-import java.util.concurrent.atomic.*;
+import java.time.Duration;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static mindustry.Vars.*;
 
 public class RankedPlugin extends Plugin{
-    private Interval interval = new Interval(2);
+    private Interval interval = new Interval(3);
 
     private Configuration configuration;
     private final Rules rules = new Rules();
@@ -31,6 +32,7 @@ public class RankedPlugin extends Plugin{
             .create();
 
     public @Nullable MatchInfo current;
+    public long start;
     public Seq<String> ready = new Seq<>();
     public ForwardObjectMap<String, PlayerData> data = new ForwardObjectMap<>();
     public AtomicInteger discriminatorCounter = new AtomicInteger();
@@ -74,7 +76,17 @@ public class RankedPlugin extends Plugin{
         });
 
         Events.on(RankedEventType.RankedGameEnd.class, event -> {
-            // todo(Skat) player leave logic
+            event.match.duration = Duration.ofMillis(Time.timeSinceMillis(start));
+            current = null;
+
+            WorldReloader reloader = new WorldReloader();
+
+            reloader.begin();
+
+            loadLobby();
+            logic.play();
+
+            reloader.end();
         });
 
         Events.on(EventType.PlayerJoin.class, event -> {
@@ -83,22 +95,34 @@ public class RankedPlugin extends Plugin{
         });
 
         Events.run(EventType.Trigger.update, () -> {
-            if(interval.get(1, 60 * 60)){
+            if(interval.get(0, 60 * 60)){
                 Core.settings.put("discriminator-counter", discriminatorCounter.get());
             }
 
-            if(active() && lobby()){
-                if(interval.get(0, 60)){
-                    if(configuration.dueling && ready.size / 2 == 1){
-                        PlayerData player1 = data.get(ready.random());
-                        PlayerData player2 = data.get(ready.random(player1.uuid));
+            if(active()){
+                if(lobby() && current == null){
+                    if(interval.get(1, 60)){
+                        if(configuration.dueling && ready.size / 2 == 1){
+                            PlayerData player1 = data.get(ready.random());
+                            PlayerData player2 = data.get(ready.random(player1.uuid));
 
-                        Events.fire(new RankedEventType.RankedGameStart(Seq.with(player1, player2)));
-                    }else{
-                        Call.setHudText(Strings.format("In queue: @\nLooking for an opponent@", ready.size, Strings.animated(Time.time, 4, 90f, ".")));
+                            Events.fire(new RankedEventType.RankedGameStart(Seq.with(player1, player2)));
+                        }else{
+                            Call.setHudText(Strings.format("In queue: @\nLooking for an opponent@", ready.size, Strings.animated(Time.time, 4, 90f, ".")));
+                        }
+                    }
+                }else{
+                    if(current != null && interval.get(2, 60 * 5)){
+                        current.players.each(p -> {
+                            Player player = Groups.player.find(t -> Objects.equals(p.uuid, t.uuid()));
+                            if(player == null) return; // todo(Skat) idk why it's null
+                            long up = p.rank.rating + (int)Math.ceil(current.players.size * configuration.baseMultiplier);
+                            long down = p.rank.rating - (int)Math.ceil(current.players.size * configuration.baseMultiplier);
+                            Call.infoPopup(player.con, "\uE804 " + up, 5.1f, 200, 1, 1, 1, 1900);
+                            Call.infoPopup(player.con, "\uE805 " + down, 5.1f, 200, 60, 1, 1, 1900);
+                        });
                     }
                 }
-
             }
         });
 
@@ -112,9 +136,9 @@ public class RankedPlugin extends Plugin{
             world.loadMap(map);
 
             state.rules = rules.copy();
-            state.rules.pvp = true;
-            state.rules.waitEnemies = false;
-            state.rules.attackMode = false;
+            // state.rules.pvp = false;          for fast testing
+            // state.rules.waitEnemies = false;
+            // state.rules.attackMode = false;
             logic.play();
 
             reloader.end();
@@ -122,7 +146,9 @@ public class RankedPlugin extends Plugin{
             ready.removeAll(event.players.map(p -> p.uuid));
 
             current = new MatchInfo();
-            // todo(Skat) initialize
+            current.players = event.players;
+            current.map = state.map;
+            start = Time.millis();
         });
     }
 
@@ -136,9 +162,7 @@ public class RankedPlugin extends Plugin{
             }
 
             logic.reset();
-            world.loadMap(maps.all().find(m -> m.name().contains("lobby")));
-            state.rules = rules.copy();
-            state.rules.tags.put("lobby", "true");
+            loadLobby();
             logic.play();
             netServer.openServer();
         });
@@ -168,6 +192,12 @@ public class RankedPlugin extends Plugin{
                                                         playerData.name, playerData.discriminator,
                                                         playerData.rank.name, playerData.rank.rating, 0)); // todo(Skat) make position calculating
         });
+    }
+
+    private void loadLobby(){
+        world.loadMap(maps.all().find(m -> m.name().contains("lobby")));
+        state.rules = rules.copy();
+        state.rules.tags.put("lobby", "true");
     }
 
     private boolean lobby(){

@@ -1,6 +1,6 @@
 package ranked.struct;
 
-import arc.func.*;
+import arc.func.Boolf;
 import arc.struct.*;
 
 /**
@@ -8,7 +8,6 @@ import arc.struct.*;
  *
  * @param <K> the type of keys maintained by this map
  * @param <V> the type of mapped values
- *
  * @author Skat
  * @see arc.struct.ObjectMap
  */

@@ -22,13 +22,14 @@ dependencies{
     implementation "com.google.code.gson:gson:2.8.6"
 }
 
-allprojects{
-    tasks.withType(JavaCompile){
-        if(JavaVersion.current() != JavaVersion.VERSION_1_8){
-            options.compilerArgs += ['--release', '8']
-        }
-    }
-}
+// error???
+// allprojects{
+//     tasks.withType(JavaCompile){
+//         if(JavaVersion.current() != JavaVersion.VERSION_1_8){
+//             options.compilerArgs += ['--release', '8']
+//         }
+//     }
+// }
 
 jar{
     archiveFileName = "${project.archivesBaseName}.jar"

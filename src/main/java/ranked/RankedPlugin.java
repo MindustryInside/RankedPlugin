@@ -51,26 +51,50 @@ public class RankedPlugin extends Plugin{
         discriminatorCounter.set(Core.settings.getInt("discriminator-counter"));
 
         rules.tags.put("ranked", "true");
+        rules.canGameOver = true;
 
         NetServer.TeamAssigner prev = netServer.assigner;
         netServer.assigner = (player, players) -> {
             Seq<Player> arr = Seq.with(players);
 
             if(active() && !lobby()){
-                for(Teams.TeamData team : state.teams.active){
-                    if(team.active() && !arr.contains(p -> p.team() == team.team)){
-                        return team.team;
+                Teams.TeamData re = state.teams.getActive().min(data -> {
+                    if((state.rules.waveTeam == data.team && state.rules.waves) || !data.team.active()) return Integer.MAX_VALUE;
+
+                    int count = 0;
+                    for(Player other : players){
+                        if(other.team() == data.team && other != player){
+                            count++;
+                        }
                     }
-                }
-                return Team.derelict;
+                    return count;
+                });
+                return re == null ? null : re.team;
+
+                // todo(Skat): idk how make this normally
+                // for(Teams.TeamData team : state.teams.active){
+                //     if(team.active() && !arr.contains(p -> p.team() == team.team)){
+                //         return team.team;
+                //     }
+                // }
+                // return Team.derelict;
             }else{
                 return prev.assign(player, players);
             }
         };
 
+        Events.on(EventType.GameOverEvent.class, event -> {
+            if(current != null){
+                current.winner = current.players.find(p -> Objects.equals(p.uuid, Groups.player.find(t -> t.team() == event.winner).uuid()));
+                Events.fire(new RankedEventType.RankedGameEnd(current));
+            }
+        });
+
         Events.on(EventType.PlayerLeave.class, event -> {
             if(current != null){
                 current.winner = current.players.find(p -> p != data.get(event.player.uuid()));
+                if(current.winner == null) return;
+                // It's real
                 Events.fire(new RankedEventType.RankedGameEnd(current));
             }
 
@@ -144,13 +168,20 @@ public class RankedPlugin extends Plugin{
 
             reloader.begin();
 
-            Map map = maps.getNextMap(Gamemode.pvp, null); //maps.all().find(m -> m.teams.size > 1);
+            // todo(Skat): I can't get pvp map
+            Map map = maps.all().find(m -> m.teams.size > 1);
+            if(map == null){
+                map = maps.byName("Glacier");
+            }
+
+            if(map == null){
+                Core.app.exit();
+                return;
+            }
             world.loadMap(map);
 
             state.rules = rules.copy();
-            // state.rules.pvp = false;          for fast testing
-            // state.rules.waitEnemies = false;
-            // state.rules.attackMode = false;
+            state.rules.pvp = true;
             logic.play();
 
             reloader.end();
@@ -232,7 +263,12 @@ public class RankedPlugin extends Plugin{
     }
 
     private void loadLobby(){
-        world.loadMap(maps.all().find(m -> m.name().contains("lobby")));
+        Map map = maps.all().find(m -> m.name().contains("lobby"));
+        if(map == null){
+            Log.err("Lobby map not found. Please add at least one map");
+            Core.app.exit();
+        }
+        world.loadMap(map);
         state.rules = rules.copy();
         state.rules.tags.put("lobby", "true");
     }

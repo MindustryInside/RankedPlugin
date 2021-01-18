@@ -6,49 +6,44 @@ import java.util.Objects;
 
 public final class Rank{
     public String name;
-    public String prefix;
     public long rating;
     public @Nullable Rank next;
 
-    public Rank(String name, String prefix, long rating, @Nullable Rank next){
-        this.name = name;
-        this.prefix = prefix;
+    public Rank(String name, long rating, @Nullable Rank next){
+        this.name = Objects.requireNonNull(name, "name");
         this.rating = rating;
         this.next = next;
     }
 
-    public static Builder builder(){
-        return new Builder();
+    public Rank(String name, long rating){
+        this(name, rating, null);
     }
 
-    public static class Builder{
-        public String name;
-        public String prefix;
-        public long rating;
-        public @Nullable Rank next;
+    public Rank copy(){
+        return new Rank(name, rating, next);
+    }
 
-        public Builder name(String name){
-            this.name = Objects.requireNonNull(name, "name");
-            return this;
-        }
+    @Override
+    public boolean equals(Object o){
+        if(this == o) return true;
+        if(o == null || getClass() != o.getClass()) return false;
+        Rank rank = (Rank)o;
+        return rating == rank.rating &&
+               name.equals(rank.name) &&
+               Objects.equals(next, rank.next);
+    }
 
-        public Builder prefix(String prefix){
-            this.prefix = Objects.requireNonNull(prefix, "prefix");
-            return this;
-        }
+    @Override
+    public int hashCode(){
+        return Objects.hash(name, rating, next);
+    }
 
-        public Builder rating(long rating){
-            this.rating = rating;
-            return this;
-        }
-
-        public Builder next(@Nullable Rank next){
-            this.next = next;
-            return this;
-        }
-
-        public Rank build(){
-            return new Rank(name, prefix, rating, next);
-        }
+    @Override
+    public String toString(){
+        return "Rank{" +
+               "name='" + name + '\'' +
+               ", rating=" + rating +
+               ", next=" + next +
+               '}';
     }
 }

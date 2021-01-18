@@ -9,6 +9,7 @@ import com.google.gson.*;
 import mindustry.core.NetServer;
 import mindustry.game.*;
 import mindustry.gen.*;
+import mindustry.io.JsonIO;
 import mindustry.maps.Map;
 import mindustry.mod.Plugin;
 import mindustry.net.WorldReloader;
@@ -21,9 +22,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static mindustry.Vars.*;
 
 public class RankedPlugin extends Plugin{
-    private Interval interval = new Interval(3);
-
     private Configuration configuration;
+    private final Interval interval = new Interval(3);
     private final Rules rules = new Rules();
     private final Gson gson = new GsonBuilder()
             .setFieldNamingPolicy(FieldNamingPolicy.LOWER_CASE_WITH_DASHES)
@@ -51,33 +51,18 @@ public class RankedPlugin extends Plugin{
         discriminatorCounter.set(Core.settings.getInt("discriminator-counter"));
 
         rules.tags.put("ranked", "true");
-        rules.canGameOver = true;
 
         NetServer.TeamAssigner prev = netServer.assigner;
         netServer.assigner = (player, players) -> {
             Seq<Player> arr = Seq.with(players);
 
             if(active() && !lobby()){
-                Teams.TeamData re = state.teams.getActive().min(data -> {
-                    if((state.rules.waveTeam == data.team && state.rules.waves) || !data.team.active()) return Integer.MAX_VALUE;
-
-                    int count = 0;
-                    for(Player other : players){
-                        if(other.team() == data.team && other != player){
-                            count++;
-                        }
+                for(Teams.TeamData data : state.teams.getActive()){
+                    if(!arr.contains(p -> p.team() == data.team && p != player) && data.hasCore()){
+                        return data.team;
                     }
-                    return count;
-                });
-                return re == null ? null : re.team;
-
-                // todo(Skat): idk how make this normally
-                // for(Teams.TeamData team : state.teams.active){
-                //     if(team.active() && !arr.contains(p -> p.team() == team.team)){
-                //         return team.team;
-                //     }
-                // }
-                // return Team.derelict;
+                }
+                return Team.derelict;
             }else{
                 return prev.assign(player, players);
             }
@@ -85,7 +70,9 @@ public class RankedPlugin extends Plugin{
 
         Events.on(EventType.GameOverEvent.class, event -> {
             if(current != null){
-                current.winner = current.players.find(p -> Objects.equals(p.uuid, Groups.player.find(t -> t.team() == event.winner).uuid()));
+                Player winner = Groups.player.find(t -> t.team() == event.winner);
+                current.winner = current.players.find(p -> Objects.equals(winner.uuid(), p.uuid));
+                if(current.winner == null) return;
                 Events.fire(new RankedEventType.RankedGameEnd(current));
             }
         });
@@ -168,20 +155,16 @@ public class RankedPlugin extends Plugin{
 
             reloader.begin();
 
-            // todo(Skat): I can't get pvp map
-            Map map = maps.all().find(m -> m.teams.size > 1);
-            if(map == null){
-                map = maps.byName("Glacier");
-            }
+            Map map = maps.all().find(m -> {
+                Rules rules = m.rules();
+                return rules.pvp || !rules.waves && !rules.attackMode;
+            });
 
-            if(map == null){
-                Core.app.exit();
-                return;
-            }
             world.loadMap(map);
 
             state.rules = rules.copy();
             state.rules.pvp = true;
+            state.rules.attackMode = true;
             logic.play();
 
             reloader.end();

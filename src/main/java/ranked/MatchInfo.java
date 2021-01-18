@@ -10,4 +10,14 @@ public final class MatchInfo{
     public Map map;
     public PlayerData winner;
     public Duration duration;
+
+    @Override
+    public String toString(){
+        return "MatchInfo{" +
+               "players=" + players +
+               ", map=" + map +
+               ", winner=" + winner +
+               ", duration=" + duration +
+               '}';
+    }
 }

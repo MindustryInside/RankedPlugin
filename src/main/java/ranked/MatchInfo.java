@@ -1,21 +1,34 @@
 package ranked;
 
 import arc.struct.Seq;
-import mindustry.maps.Map;
-
-import java.time.Duration;
 
 public final class MatchInfo{
     public Seq<PlayerData> players;
-    public Map map;
+    public String mapname;
     public PlayerData winner;
-    public Duration duration;
+    public long duration;
+
+    public MatchInfo(Seq<PlayerData> players, String mapname){
+        this.players = players;
+        this.mapname = mapname;
+    }
+
+    public MatchInfo(Seq<PlayerData> players, String mapname, PlayerData winner, long duration){
+        this.players = players;
+        this.mapname = mapname;
+        this.winner = winner;
+        this.duration = duration;
+    }
+
+    public MatchInfo copy(){
+        return new MatchInfo(players, mapname, winner, duration);
+    }
 
     @Override
     public String toString(){
         return "MatchInfo{" +
                "players=" + players +
-               ", map=" + map +
+               ", mapname='" + mapname + '\'' +
                ", winner=" + winner +
                ", duration=" + duration +
                '}';

@@ -3,19 +3,18 @@ package ranked;
 import arc.*;
 import arc.files.Fi;
 import arc.math.Mathf;
-import arc.struct.Seq;
+import arc.struct.*;
 import arc.util.*;
 import com.google.gson.*;
+import com.google.gson.reflect.TypeToken;
 import mindustry.core.NetServer;
 import mindustry.game.*;
 import mindustry.gen.*;
-import mindustry.io.JsonIO;
 import mindustry.maps.Map;
 import mindustry.mod.Plugin;
 import mindustry.net.WorldReloader;
 import ranked.struct.ForwardObjectMap;
 
-import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -35,7 +34,8 @@ public class RankedPlugin extends Plugin{
     public @Nullable MatchInfo current;
     public long start;
     public Seq<String> ready = new Seq<>();
-    public ForwardObjectMap<String, PlayerData> data = new ForwardObjectMap<>();
+    public ObjectMap<String, PlayerData> data = new ForwardObjectMap<>();
+    public Seq<MatchInfo> matches = new Seq<>();
     public AtomicInteger discriminatorCounter = new AtomicInteger();
 
     @Override
@@ -48,9 +48,13 @@ public class RankedPlugin extends Plugin{
             configuration = gson.fromJson(cfg.reader(), Configuration.class);
         }
 
-        discriminatorCounter.set(Core.settings.getInt("discriminator-counter"));
-
         rules.tags.put("ranked", "true");
+
+        load();
+
+        Log.debug("matches: @", matches);
+        Log.debug("data: @", data);
+        Log.debug("discriminatorCounter: @", discriminatorCounter);
 
         NetServer.TeamAssigner prev = netServer.assigner;
         netServer.assigner = (player, players) -> {
@@ -89,14 +93,14 @@ public class RankedPlugin extends Plugin{
         });
 
         Events.on(RankedEventType.RankedGameEnd.class, event -> {
-            current.duration = Duration.ofMillis(Time.timeSinceMillis(start));
+            current.duration = Time.timeSinceMillis(start);
 
             PlayerData loser = current.players.get(1);
             PlayerData winner = current.winner;
             winner.rank.rating = newRating(winner, loser, true);
             loser.rank.rating = newRating(loser, winner, false);
 
-            // todo(Skat): save match data
+            matches.add(current.copy());
 
             current = null;
 
@@ -117,7 +121,7 @@ public class RankedPlugin extends Plugin{
 
         Events.run(EventType.Trigger.update, () -> {
             if(interval.get(0, 60 * 60)){
-                Core.settings.put("discriminator-counter", discriminatorCounter.get());
+                save();
             }
 
             if(active()){
@@ -137,7 +141,7 @@ public class RankedPlugin extends Plugin{
                         if(p1 == null || p1.asPlayer() == null) return;
                         PlayerData p2 = current.players.find(p -> !p.uuid.equals(p1.uuid) && inDiapason(p.rank.rating, p1.rank.rating, 50));
                         if(p2 == null || p2.asPlayer() == null) return; // todo(Skat) idk why it's null
-                                                                        // upd: null because this runs on world load
+                        // upd: null because this runs on world load
 
                         Call.infoPopup(p1.asPlayer().con, "[green]\uE804[] " + newRating(p1, p2, true), 5.1f, 200, 1, 1, 1, 1900);
                         Call.infoPopup(p1.asPlayer().con, "[scarlet]\uE805[] " + newRating(p1, p2, false), 5.1f, 200, 60, 1, 1, 1900);
@@ -171,9 +175,7 @@ public class RankedPlugin extends Plugin{
 
             ready.removeAll(event.players.map(p -> p.uuid));
 
-            current = new MatchInfo();
-            current.players = event.players;
-            current.map = state.map;
+            current = new MatchInfo(event.players, state.map.name());
             start = Time.millis();
         });
     }
@@ -218,6 +220,22 @@ public class RankedPlugin extends Plugin{
                                                         playerData.name, playerData.discriminator,
                                                         playerData.rank.name, playerData.rank.rating, 0)); // todo(Skat) make position calculating
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void load(){
+        matches = gson.fromJson(Core.settings.getString("ranked-matches"), new TypeToken<Seq<PlayerData>>(){}.getType());
+        data = gson.fromJson(Core.settings.getString("ranked-data"), new TypeToken<ObjectMap<String, PlayerData>>(){}.getType());
+        discriminatorCounter.set(Core.settings.getInt("discriminator-counter"));
+
+        if(matches == null) matches = new Seq<>();
+        if(data == null) data = new ObjectMap<>();
+    }
+
+    public void save(){
+        Core.settings.put("ranked-matches", gson.toJson(matches));
+        Core.settings.put("ranked-data", gson.toJson(data));
+        Core.settings.put("discriminator-counter", discriminatorCounter.get());
     }
 
     private boolean inDiapason(double f1, double f2, double d){

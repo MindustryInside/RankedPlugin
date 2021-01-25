@@ -211,6 +211,7 @@ public class RankedPlugin extends Plugin{
 
         handler.<Player>register("info", "Get self info.", (args, player) -> {
             PlayerData playerData = data.get(player.uuid());
+            int pos = data.values().toSeq().sort(p -> p.rank.rating).sort(p -> p.discriminator).indexOf(playerData) + 1;
 
             Call.infoMessage(player.con, Strings.format("[orange]-- Your Statistic --\n" +
                                                         "name [lightgray]@[]#[lightgray]@[orange]\n" +
@@ -218,7 +219,7 @@ public class RankedPlugin extends Plugin{
                                                         "rating [lightgray]@[]\n" +
                                                         "position in top [lightgray]@",
                                                         playerData.name, playerData.discriminator,
-                                                        playerData.rank.name, playerData.rank.rating, 0)); // todo(Skat) make position calculating
+                                                        playerData.rank.name, playerData.rank.rating, pos));
         });
     }
 

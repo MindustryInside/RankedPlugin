@@ -223,14 +223,18 @@ public class RankedPlugin extends Plugin{
         });
     }
 
-    @SuppressWarnings("unchecked")
     public void load(){
         matches = gson.fromJson(Core.settings.getString("ranked-matches"), new TypeToken<Seq<MatchInfo>>(){}.getType());
         data = gson.fromJson(Core.settings.getString("ranked-data"), new TypeToken<ObjectMap<String, PlayerData>>(){}.getType());
         discriminatorCounter.set(Core.settings.getInt("discriminator-counter"));
 
-        if(matches == null) matches = new Seq<>();
-        if(data == null) data = new ObjectMap<>();
+        if(matches == null){
+            matches = new Seq<>();
+        }
+
+        if(data == null){
+            data = new ObjectMap<>();
+        }
     }
 
     public void save(){

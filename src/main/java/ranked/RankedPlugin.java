@@ -211,7 +211,7 @@ public class RankedPlugin extends Plugin{
 
         handler.<Player>register("info", "Get self info.", (args, player) -> {
             PlayerData playerData = data.get(player.uuid());
-            int pos = data.values().toSeq().sort(p -> p.rank.rating).sort(p -> p.discriminator).indexOf(playerData) + 1;
+            int pos = data.values().toSeq().sort(p -> -p.rank.rating).sort(p -> p.discriminator).indexOf(playerData) + 1;
 
             Call.infoMessage(player.con, Strings.format("[orange]-- Your Statistic --\n" +
                                                         "name [lightgray]@[]#[lightgray]@[orange]\n" +
@@ -225,7 +225,7 @@ public class RankedPlugin extends Plugin{
 
     @SuppressWarnings("unchecked")
     public void load(){
-        matches = gson.fromJson(Core.settings.getString("ranked-matches"), new TypeToken<Seq<PlayerData>>(){}.getType());
+        matches = gson.fromJson(Core.settings.getString("ranked-matches"), new TypeToken<Seq<MatchInfo>>(){}.getType());
         data = gson.fromJson(Core.settings.getString("ranked-data"), new TypeToken<ObjectMap<String, PlayerData>>(){}.getType());
         discriminatorCounter.set(Core.settings.getInt("discriminator-counter"));
 

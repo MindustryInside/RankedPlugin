@@ -271,7 +271,7 @@ public class RankedPlugin extends Plugin{
     private void loadLobby(){
         Map map = maps.all().find(m -> m.name().contains("lobby"));
         if(map == null){
-            Log.err("Lobby map not found. Please add at least one map");
+            Log.err("Lobby map not found. Please add at least one map with name 'lobby'");
             Core.app.exit();
         }
         world.loadMap(map);

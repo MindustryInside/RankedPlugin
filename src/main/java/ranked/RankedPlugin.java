@@ -140,7 +140,7 @@ public class RankedPlugin extends Plugin{
                         if(p1 == null || p1.asPlayer() == null) return;
                         PlayerData p2 = current.players.find(p -> !p.uuid.equals(p1.uuid) && inDiapason(p.rank.rating, p1.rank.rating, 50));
                         if(p2 == null || p2.asPlayer() == null) return; // todo(Skat) idk why it's null
-                        // upd: null because this runs on world load
+                                                                        // upd: null because this runs on world load
 
                         Call.infoPopup(p1.asPlayer().con, "[green]\uE804[] " + newRating(p1, p2, true), 5.1f, 200, 1, 1, 1, 1900);
                         Call.infoPopup(p1.asPlayer().con, "[scarlet]\uE805[] " + newRating(p1, p2, false), 5.1f, 200, 60, 1, 1, 1900);
@@ -211,14 +211,19 @@ public class RankedPlugin extends Plugin{
         handler.<Player>register("info", "Get self info.", (args, player) -> {
             PlayerData playerData = data.get(player.uuid());
             int pos = data.values().toSeq().sort(p -> -p.rank.rating).sort(p -> p.discriminator).indexOf(playerData) + 1;
+            int win = matches.count(m -> m.winner == playerData);
+            int defeat = matches.count(m -> m.players.contains(playerData) && m.winner != playerData);
 
             Call.infoMessage(player.con, Strings.format("[orange]-- Your Statistic --\n" +
                                                         "name [lightgray]@[]#[lightgray]@[orange]\n" +
                                                         "rank [lightgray]@[]\n" +
                                                         "rating [lightgray]@[]\n" +
+                                                        "win count [lightgray]@[]\n" +
+                                                        "defeat count [lightgray]@[]\n" +
                                                         "position in top [lightgray]@",
                                                         playerData.name, playerData.discriminator,
-                                                        playerData.rank.name, playerData.rank.rating, pos));
+                                                        playerData.rank.name, playerData.rank.rating,
+                                                        win, defeat, pos));
         });
     }
 
@@ -246,22 +251,22 @@ public class RankedPlugin extends Plugin{
         return f1 + d > f2 && f2 > f1 - d;
     }
 
-    public double transformed(PlayerData player){
+    private double transformed(PlayerData player){
         return Math.pow(10d, player.rank.rating / 400d);
     }
 
-    public double expectedScore(PlayerData p1, PlayerData p2){
+    private double expectedScore(PlayerData p1, PlayerData p2){
         // Ea = 1 / (1 + 10 ^ ((Rb - Ra) / 400))
         double p1Tran = transformed(p1);
         double p2Tran = transformed(p2);
         return p1Tran / (p1Tran + p2Tran);
     }
 
-    public long newRating(PlayerData p1, PlayerData p2){
+    private long newRating(PlayerData p1, PlayerData p2){
         return newRating(p1, p2, Objects.equals(current.winner, p1));
     }
 
-    public long newRating(PlayerData p1, PlayerData p2, boolean win){
+    private long newRating(PlayerData p1, PlayerData p2, boolean win){
         // Ra = Ra + K * (Sa — Ea)
         double updatedRating = p1.rank.rating + 15 * (Mathf.num(win) - expectedScore(p1, p2));
         return (long)Math.ceil(updatedRating);

@@ -13,7 +13,6 @@ import mindustry.gen.*;
 import mindustry.maps.Map;
 import mindustry.mod.Plugin;
 import mindustry.net.WorldReloader;
-import ranked.struct.ForwardObjectMap;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -34,7 +33,7 @@ public class RankedPlugin extends Plugin{
     public @Nullable MatchInfo current;
     public long start;
     public Seq<String> ready = new Seq<>();
-    public ObjectMap<String, PlayerData> data = new ForwardObjectMap<>();
+    public ObjectMap<String, PlayerData> data = new ObjectMap<>();
     public Seq<MatchInfo> matches = new Seq<>();
     public AtomicInteger discriminatorCounter = new AtomicInteger();
 

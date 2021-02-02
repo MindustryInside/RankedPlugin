@@ -2,6 +2,8 @@ package ranked;
 
 import arc.struct.Seq;
 
+import java.util.Objects;
+
 public final class MatchInfo{
     public Seq<PlayerData> players;
     public String mapname;
@@ -22,6 +24,22 @@ public final class MatchInfo{
 
     public MatchInfo copy(){
         return new MatchInfo(players, mapname, winner, duration);
+    }
+
+    @Override
+    public boolean equals(Object o){
+        if(this == o) return true;
+        if(o == null || getClass() != o.getClass()) return false;
+        MatchInfo matchInfo = (MatchInfo)o;
+        return duration == matchInfo.duration &&
+               players.equals(matchInfo.players) &&
+               mapname.equals(matchInfo.mapname) &&
+               Objects.equals(winner, matchInfo.winner);
+    }
+
+    @Override
+    public int hashCode(){
+        return Objects.hash(players, mapname, winner, duration);
     }
 
     @Override

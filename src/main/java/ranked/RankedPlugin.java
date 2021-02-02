@@ -74,7 +74,7 @@ public class RankedPlugin extends Plugin{
         Events.on(EventType.GameOverEvent.class, event -> {
             if(current != null){
                 Player winner = Groups.player.find(t -> t.team() == event.winner);
-                current.winner = current.players.find(p -> Objects.equals(winner.uuid(), p.uuid));
+                current.winner = current.players.find(p -> winner.uuid().equals(p.uuid));
                 if(current.winner == null) return;
                 Events.fire(new RankedEventType.RankedGameEnd(current));
             }
@@ -97,7 +97,9 @@ public class RankedPlugin extends Plugin{
             PlayerData loser = current.players.get(1);
             PlayerData winner = current.winner;
             winner.rank.rating = newRating(winner, loser, true);
+            winner.rank = update(winner.rank);
             loser.rank.rating = newRating(loser, winner, false);
+            loser.rank = update(loser.rank);
 
             matches.add(current.copy());
 
@@ -211,8 +213,8 @@ public class RankedPlugin extends Plugin{
         handler.<Player>register("info", "Get self info.", (args, player) -> {
             PlayerData playerData = data.get(player.uuid());
             int pos = data.values().toSeq().sort(p -> -p.rank.rating).sort(p -> p.discriminator).indexOf(playerData) + 1;
-            int win = matches.count(m -> m.winner == playerData);
-            int defeat = matches.count(m -> m.players.contains(playerData) && m.winner != playerData);
+            int win = matches.count(m -> m.winner.equals(playerData));
+            int defeat = matches.count(m -> m.players.contains(playerData) && !m.winner.equals(playerData));
 
             Call.infoMessage(player.con, Strings.format("[orange]-- Your Statistic --\n" +
                                                         "name [lightgray]@[]#[lightgray]@[orange]\n" +
@@ -245,6 +247,14 @@ public class RankedPlugin extends Plugin{
         Core.settings.put("ranked-matches", gson.toJson(matches));
         Core.settings.put("ranked-data", gson.toJson(data));
         Core.settings.put("discriminator-counter", discriminatorCounter.get());
+    }
+
+    private Rank update(Rank prev){
+        int indexNext = Structs.indexOf(configuration.ranks.toArray(new Rank[0]), r -> prev.rating > r.rating);
+        if(indexNext != -1){
+            return configuration.ranks.get(indexNext).copy(prev.rating);
+        }
+        return prev;
     }
 
     private boolean inDiapason(double f1, double f2, double d){

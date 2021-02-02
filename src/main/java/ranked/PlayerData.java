@@ -24,6 +24,22 @@ public final class PlayerData{
     }
 
     @Override
+    public boolean equals(Object o){
+        if(this == o) return true;
+        if(o == null || getClass() != o.getClass()) return false;
+        PlayerData that = (PlayerData)o;
+        return discriminator == that.discriminator &&
+               uuid.equals(that.uuid) &&
+               name.equals(that.name) &&
+               rank.equals(that.rank);
+    }
+
+    @Override
+    public int hashCode(){
+        return Objects.hash(uuid, name, discriminator, rank);
+    }
+
+    @Override
     public String toString(){
         return "PlayerData{" +
                "uuid='" + uuid + '\'' +

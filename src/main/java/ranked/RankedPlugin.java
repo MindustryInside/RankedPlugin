@@ -215,6 +215,7 @@ public class RankedPlugin extends Plugin{
             int pos = data.values().toSeq().sort(p -> -p.rank.rating).sort(p -> p.discriminator).indexOf(playerData) + 1;
             int win = matches.count(m -> m.winner.equals(playerData));
             int defeat = matches.count(m -> m.players.contains(playerData) && !m.winner.equals(playerData));
+            int average = Math.round((float)win / (float)(win + defeat) * 100);
 
             Call.infoMessage(player.con, Strings.format("[orange]-- Your Statistic --\n" +
                                                         "name [lightgray]@[]#[lightgray]@[orange]\n" +
@@ -222,10 +223,11 @@ public class RankedPlugin extends Plugin{
                                                         "rating [lightgray]@[]\n" +
                                                         "win count [lightgray]@[]\n" +
                                                         "defeat count [lightgray]@[]\n" +
+                                                        "Wins percent [lightgray]@[]\n" +
                                                         "position in top [lightgray]@",
                                                         playerData.name, playerData.discriminator,
                                                         playerData.rank.name, playerData.rank.rating,
-                                                        win, defeat, pos));
+                                                        win, defeat, average, pos));
         });
     }
 
